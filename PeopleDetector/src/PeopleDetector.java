@@ -1,6 +1,7 @@
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
@@ -18,7 +19,6 @@ import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoCapture;
-import org.opencv.videoio.Videoio;
 import org.opencv.objdetect.HOGDescriptor;
 
 public class PeopleDetector {
@@ -35,7 +35,7 @@ public class PeopleDetector {
 		// initialize the JFrame for video display
 		JFrame jframe = new JFrame("Title");
 	    jframe.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-	    jframe.setSize(640, 480);
+	    jframe.setSize(1920, 1080);
 	    JLabel vidpanel = new JLabel();
 	    jframe.setContentPane(vidpanel);
 	    jframe.setVisible(true);
@@ -47,12 +47,15 @@ public class PeopleDetector {
         
 		// video to be analyzed
         VideoCapture vc = new VideoCapture("resources/TownCentreXVID.avi");
-		vc.set(Videoio.CAP_PROP_FRAME_WIDTH, 640); // width
-		vc.set(Videoio.CAP_PROP_FRAME_HEIGHT, 480); // height
+        
+        // if you want to make video capture smaller you can (it'll be faster but less accurate)
+//		vc.set(Videoio.CAP_PROP_FRAME_WIDTH, 640); // width
+//		vc.set(Videoio.CAP_PROP_FRAME_HEIGHT, 480); // height
 		
 		// initialize matrix that will be frames of video
 		Mat frame = new Mat();
-		
+		Mat outputFrame = new Mat(new Size(1920, 1080), CvType.CV_8UC3);
+
 		while (true){
 			if (vc.read(frame)){
 				// resize the frame
@@ -60,7 +63,7 @@ public class PeopleDetector {
 				
 				// create output frame with sky blue background
 				// we will draw clouds onto this frame from info in video frame
-				Mat outputFrame = new Mat(new Size(1920, 1080), CvType.CV_8UC3);
+				// TODO: if you put this outside the while loop, the clouds will stack ontop eachother
 				outputFrame.setTo(new Scalar(255,191,0));
 				
 				MatOfRect peds = new MatOfRect();
@@ -73,29 +76,35 @@ public class PeopleDetector {
 				// into an array of rectangles
 				Rect[] pedsArray = peds.toArray();
 	            
-				// get the x,y coordinates of people the matrices
-				// because drawing clouds over a rectangle doesn't make as much sense I think
-				ArrayList<Point> points = new ArrayList<Point>();
+				// Get coordinates of rectangle's corners for cloud drawing and then draw the cloud
+				Point[] points = new Point[4];
 				for(Rect rect: pedsArray){
-					for(int i = 0; i< 100; i++){
-						frame.put(rect.x + i, rect.y + i, new double[]{255.0, 255.0, 255.0});
-						System.out.println(rect.x + ", " + rect.y);
-					}
 					Point p = new Point(rect.x, rect.y);
-					points.add(p);
+					Point q = new Point(rect.br().x, rect.br().y);
+					points[0] = p; // top left
+					points[2] = q; // bottom right
+					double w = rect.br().x - rect.x;
+					double h = rect.br().y - rect.y;
+					points[1] = new Point(rect.x+w, rect.y); // top right
+					points[3] = new Point(rect.x, rect.y+h); // bottom left
+					MatOfPoint mp = new MatOfPoint();
+					
+					mp.fromArray(points);
+					List<MatOfPoint> ppt = new ArrayList<MatOfPoint>();
+					ppt.add(mp);
+					Imgproc.fillPoly(outputFrame, ppt, new Scalar(255,255,255), 8, 0, new Point(0,0));
+
 				}
 				
-				// turn our list of points into a matrix
-				MatOfPoint mp = new MatOfPoint();
-				mp.fromList(points);
 				
-				// draw rectangle over the frame
-				for (int i = 0; i < pedsArray.length; i++){
-	                
-					Imgproc.rectangle(outputFrame, pedsArray[i].tl(), pedsArray[i].br(), new Scalar(0, 255, 0, 255), 3);
-//					Imgproc.(frame, mp, new Scalar(0, 0, 0));
-
-	            }
+//				// draw rectangle over the frame (trying to make it clouds tho)
+//				for (int i = 0; i < pedsArray.length; i++){
+//	                
+//					Imgproc.rectangle(outputFrame, pedsArray[i].tl(), pedsArray[i].br(), new Scalar(0, 255, 0, 255), 3);	
+//					    
+//					    
+//
+//	            }
 								
 				// turn the frame into an image
 				ImageIcon image = new ImageIcon(matToBufferedImage(outputFrame));
